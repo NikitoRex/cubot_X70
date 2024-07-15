@@ -1,9 +1,7 @@
 version: ~> 1.0
 os: linux
-dist: bionic
-language: generic
-
-
+dist: focal
+language: ruby
 
 group: previous
 git:
@@ -23,19 +21,16 @@ services:
   - docker
 
 before_install:
-  - docker --version
-  - ruby --version
-  - gem install bundler
-  - docker pull fr3akyphantom/droid-builder:latest
+  - docker pull fr3akyphantom/droid-builder:focal
 
 before_script:
-  - bundle install
   - cd $HOME && mkdir twrp
-  - TWRP_SOURCE="https://github.com/PhantomZone54/twrp_sources_norepo/releases/download/v3.3.1-20200222/MinimalOmniRecovery-twrp-7.1-norepo-20200222.tar.xz"
+  - TWRP_SOURCE="https://github.com/PhantomZone54/twrp_sources_norepo/releases/download/v3.3.1-20200222/MinimalOmniRecovery-twrp-6.0-norepo-20200222.tar.xz"
   - wget -q ${TWRP_SOURCE} -O $HOME/twrp.tar.xz
   - tar -xJf $HOME/twrp.tar.xz --directory $HOME/twrp/ && rm $HOME/twrp.tar.xz
 
 script:
+  # No changes here
   - cd $HOME/twrp/
   - cd $HOME/twrp/ && git clone https://github.com/NikitoRex/prebuilt.git device/Cubot/X70
   - rm -rf bootable/recovery && git clone https://github.com/NikitoRex/android_bootable_recovery -b android-9.0 --depth 1 bootable/recovery
@@ -43,32 +38,35 @@ script:
     docker run --rm -i -e USER_ID=$(id -u) -e GROUP_ID=$(id -g) -v "$(pwd):/home/builder/twrp/:rw,z" -v "${HOME}/.ccache:/srv/ccache:rw,z" fr3akyphantom/droid-builder bash
     cd /home/builder/twrp/
     source build/envsetup.sh
-    BUILD_FLAVOR="eng"
+    BUILD_FLAVOR="userdebug"
     lunch omni_X70-${BUILD_FLAVOR}
-    make -j$(nproc --all) recoveryimage
-    make -j$(nproc --all) otapackage
-  "
-
-  - docker run -e CI=true nikitorx/prebuilt npm run test -- --coverage
+    make -j$(nproc --all) recoveryimage'
+  - docker run -e CI=true nikitorex/prebuilt npm run test -- --coverage
 
 after_success:
   - export version=$(grep "define TW_MAIN_VERSION_STR" bootable/recovery/variables.h | cut -d '"' -f2)
-  - cp $HOME/twrp/out/target/product/X70/prebuilt.img $HOME/twrp/TWRP-${version}-X70-$(date +"%Y%m%d")-Unofficial.img
+  - cp $HOME/twrp/out/target/product/X70/prebuilt.img $HOME/twrp/TWRP-${13}-X70-$(date +"%Y%m%d")-Unofficial.img
   - cd $HOME/twrp/
+
 deploy:
   cleanup: true
   provider: releases
   api_key: $GITHUB_OAUTH_TOKEN
   file_glob: true
-  file: $HOME/twrp/*.img
+  file:
+    - $HOME/twrp/*.img
+    - $HOME/twrp/*.zip
   on:
     tags: false
     repo: NikitoRex/prebuilt
     branch: main
 
+timeout: 30m
+
 branches:
   only:
     - main
+
   except:
     - /^(?i:untagged)-.*$/
     - /^v\d+\.\d+(\.\d+)?(-\S*)?$/
